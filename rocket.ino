@@ -1,5 +1,9 @@
+#include<NoDelayTimerTask.h>
+
 //#define ARRAYSIZE 70
 //#define ARRAYSIZE2 140
+
+NoDelayTimerTask timer_tout_sot(2000);
 
 String g_state = "ST_WAIT_ACK";
 bool msg = 0;
@@ -29,14 +33,23 @@ void setup() {
 
 void loop() {
 
-    if (stringComplete) {
+    if (stringComplete) {             
 //Serial.print(inputString);
     msg = digitalRead(7);
     input = inputString;
     inputString = "";
     stringComplete = false;
-
+    }
+        
     if (g_state == "ST_WAIT_ACK"){
+        //timer_tout_sot.resetTimer();
+
+        if (timer_tout_sot.isTimeUp())
+          {
+            timer_tout_sot.resetTimer();
+            input = "EV_TOUT_SOT\n";
+          }
+      
         if(input == "EV_TOUT_SOT\n") {
             Serial.print("Sot timeout. Reenviando SoT\n");
             //Serial.print("***SoT***\n");
@@ -56,9 +69,9 @@ void loop() {
                 g_state = "ST_RECEIVING_DATA"; //10
             }
         }
-        else{
+        /*else{
         Serial.print("Error-wait-ack\n");
-            }
+            }*/
     }
     if(g_state == "ST_SENDING_DATA"){
       
@@ -112,8 +125,9 @@ void loop() {
         }
                 
     }
-    
-  }
+    input = "";
+    //delay(1000);
+  //}           
 }
 
 void serialEvent() {
