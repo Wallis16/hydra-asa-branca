@@ -1,12 +1,10 @@
-#include<NoDelayTimerTask.h>
+#include "TimerOne.h"
 
 //#define ARRAYSIZE 70
 //#define ARRAYSIZE2 140
 
-NoDelayTimerTask timer_tout_sot(2000);
-
 String g_state = "ST_WAIT_ACK";
-bool msg = 0;
+bool msg, flag1, flag_timer = 0;
 bool g_session_over = 0;
 
 //String ST_names[ARRAYSIZE] = { "ST_INIT", "ST_WAIT_ACK", "ST_SENDING_DATA", "ST_RECEIVING_DATA",
@@ -27,46 +25,61 @@ String input;
 void setup() {
   Serial.begin(115200);
   inputString.reserve(200);
+  
+  Timer1.initialize(1000000);         // initialize timer1, and set a 1/2 second period
+  Timer1.attachInterrupt(callback);  // attaches callback() as a timer overflow interrupt
 
   pinMode(7, INPUT);
 }
 
+void callback()
+{
+  if(g_state == "ST_WAIT_ACK"){
+    input = "EV_TOUT_SOT\n";
+  }
+  if(g_state == "ST_SENDING_DATA"){
+    input = "EV_TOUT_SESSION_TX\n";
+  }
+  
+  flag_timer = true;
+}
+
 void loop() {
 
-    if (stringComplete) {             
+    if (stringComplete == true || flag_timer == true){             
 //Serial.print(inputString);
     msg = digitalRead(7);
     input = inputString;
     inputString = "";
     stringComplete = false;
-    }
-        
+    
     if (g_state == "ST_WAIT_ACK"){
         //timer_tout_sot.resetTimer();
 
-        if (timer_tout_sot.isTimeUp())
-          {
-            timer_tout_sot.resetTimer();
-            input = "EV_TOUT_SOT\n";
-          }
-      
+    //flag1 = true;
+  //Serial.print(input);
         if(input == "EV_TOUT_SOT\n") {
-            Serial.print("Sot timeout. Reenviando SoT\n");
-            //Serial.print("***SoT***\n");
+            //Serial.print("Sot timeout. Reenviando SoT\n");
+            Serial.print("***SoT***\n");
+            input = "";
+            flag_timer = false;
             //send_sot();
             }
 
         if(input == "EV_ACK\n"){  //7
-            Serial.print("Recebido EV_ACK.\n");
+            //Serial.print("Recebido EV_ACK.\n");
             //timer_reset(&g_timer_mgr, SOT_TIMER_ID); //assim que o timer é resetado, necessita ser setado novamente, isso ocorre apenas
+            //Timer1.stop();
             if(msg == 1) {  //8              // quando send_sot() for requisitada
                 Serial.print("Sending first data after ACK\n");
                 //send_first_data();
                 g_state = "ST_SENDING_DATA";
+                Timer1.initialize(100000);
             } else {      //8
                 Serial.print("No data, sending an EOT\n");
                 //send_eot(); //9
                 g_state = "ST_RECEIVING_DATA"; //10
+                Timer1.initialize(500000);
             }
         }
         /*else{
@@ -74,14 +87,18 @@ void loop() {
             }*/
     }
     if(g_state == "ST_SENDING_DATA"){
-      
+
+      //Timer1.initialize(1000000);
         if(input == "EV_TOUT_SESSION_TX\n") {
             g_session_over = 1;
+            input = "";
+            flag_timer = false;
         }
         if(input == "EV_DATA_SENT\n") {
             if (g_session_over || !msg) {
                 //timer_reset(&g_timer_mgr, DOWNLINK_TIMER_ID);
                 g_session_over = 0;
+                Serial.print("EOT\n");
                 //send_eot();
                 g_state = "ST_RECEIVING_DATA";
             } else
@@ -90,9 +107,9 @@ void loop() {
                 
                   }
         }
-        else{
+        /*else{
         Serial.print("Error-sending-data\n");
-            }        
+            }*/        
      }
         
     if(g_state == "ST_RECEIVING_DATA"){
@@ -119,15 +136,15 @@ void loop() {
         if(input == "EV_TOUT_SESSION_RX\n"){ //11
             //tout_rx_sessao();
         }
-        else
+        /*else
         {
         Serial.print("Error-rec-data\n");
-        }
+        }*/
                 
     }
-    input = "";
+    //input = "";
     //delay(1000);
-  //}           
+  }           
 }
 
 void serialEvent() {
@@ -138,6 +155,7 @@ void serialEvent() {
       if (inChar == '\n') 
       {
       stringComplete = true;
+      flag_timer == false;
       }
                             
   }
