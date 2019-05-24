@@ -1,4 +1,4 @@
-#include "TimerOne.h"
+//ASA BRANCA - HYDRA -- DIÓGENES                     ---- VOCÊ SÓ TEM UMA CHANCE, ESTEJA PRONTO E CORRA ATRÁS DO QUE É SEU        --- 24/05/2019 -- ao som de um bom Jazz  
 
 String g_state = "ST_WAIT_ACK";
 String msg_info = "";
@@ -20,17 +20,32 @@ void setup() {
   msg_info.reserve(200);
   msg_info = "Hydra\n";
   
-  Timer1.initialize(45000);         // initialize timer1, and set a 1/2 second period
-  Timer1.attachInterrupt(callback);  // attaches callback() as a timer overflow interrupt
+  cli();//stop interrupts
+
+//set timer1 interrupt at 1Hz
+  TCCR1A = 0;// set entire TCCR1A register to 0
+  TCCR1B = 0;// same for TCCR1B
+  TCNT1  = 0;//initialize counter value to 0
+  // set compare match register for 1hz increments
+  OCR1A = 15624;// = (16*10^6) / (1*1024) - 1 (must be <65536)
+  // turn on CTC mode
+  TCCR1B |= (1 << WGM12);
+  // Set CS12 and CS10 bits for 1024 prescaler
+  TCCR1B |= (1 << CS12) | (1 << CS10);  
+  // enable timer compare interrupt
+  TIMSK1 |= (1 << OCIE1A);
+  
+  sei();//allow interrupts
 
 }
 
-void callback()
-{
-  //Serial.print("controle\n");
+ISR(TIMER1_COMPA_vect){//timer1 interrupt 1Hz toggles pin 13 (LED)
+//generates pulse wave of frequency 1Hz/2 = 0.5kHz (takes two cycles for full wave- toggle high then toggle low)
+
+ //Serial.print("controle\n");
   if(g_state == "ST_WAIT_ACK"){
     input = "EV_TOUT_SOT\n";
-    Serial.print(input);
+    //Serial.print(input);
   }
   if(g_state == "ST_SENDING_DATA"){
     input = "EV_TOUT_SESSION_TX\n";
@@ -39,8 +54,8 @@ void callback()
     input = "EV_TOUT_NO_RX\n";
   }
     
-  flag_timer = true;
-  //Serial.print("controle\n");
+  //flag_timer = true;
+
 }
 
 void loop() {
@@ -48,16 +63,16 @@ void loop() {
 
     if(msg_info.length() > 0)
     {
-      msg = false;
+      msg = true;
     }
   
-    if (stringComplete == true || flag_timer == true){             
-    //Serial.print(inputString);
-    //msg = digitalRead(7);
+    if (stringComplete == true){             
+    
     input = inputString;
     inputString = "";
     stringComplete = false;
-    //Serial.print(input);
+    }
+    
     if (g_state == "ST_WAIT_ACK"){
       
         if(input == "EV_TOUT_SOT\n") {      
@@ -66,18 +81,17 @@ void loop() {
             flag_timer = false;
             
             }
-        //Serial.print(input == "EV_ACK\n");
-        delay(2);
+        
         if(input == "EV_ACK\n"){ 
             
             if(msg == 1) {  
                 Serial.print("Hydra -- WAIT_ACK\n");
                 g_state = "ST_SENDING_DATA";
-                Timer1.initialize(1000000);
+                OCR1A = 15624;
             } else {      
                 Serial.print("EOT -- WAIT_ACK\n");
                 g_state = "ST_RECEIVING_DATA"; 
-                Timer1.initialize(5000000);
+                OCR1A = 60000;
             }
         }
         /*else{
@@ -112,14 +126,15 @@ void loop() {
             input = "";
             flag_timer = false;
             Serial.print("SoT -- RECEIVING_DATA\n");
-            Timer1.initialize(30000);
+            OCR1A = 50000;
             g_state = "ST_WAIT_ACK";
             }
        
         if(input == "EV_EOT\n"){ //11
             if (msg == true) { //12
                 Serial.print("Hydra -- RECEIVING_DATA\n");
-                g_state = "ST_SENDING_DATA"; 
+                g_state = "ST_SENDING_DATA";
+                input=""; 
             } 
             else
             {
@@ -138,7 +153,7 @@ void loop() {
     }
     //input = "";
     //delay(1000);
-  }           
+             
 }
 
 void serialEvent() {
